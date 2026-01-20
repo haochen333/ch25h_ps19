@@ -1,0 +1,1446 @@
+library(Seurat)
+library(ggplot2)
+library(DoubletFinder)
+library(SoupX)
+setwd("/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq")
+list.files(data_dir)
+#for loading Cell Ranger counts:
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-73/outs/')
+sc = autoEstCont(sc)
+CT_1.counts = adjustCounts(sc)
+CT_1 <- CreateSeuratObject(counts = sc, project = "CT_1_HC_1", min.cells = 3, min.features = 200)
+CT_1[["Condition"]] = c('CT')
+CT_1[["Sample_Name"]] = c('CT_1')
+rm(CT_1.counts)
+#vizualize QC metrics and filtering====
+CT_1[["percent.mt"]] <- PercentageFeatureSet(object = CT_1, pattern = "^mt-") #recognize mitochondrial transcripts
+all <- CT_1
+CT_1@assays$RNA$counts
+#plot of correlation between number of genes detected and number of transcripts detected - you generally want this to be 1:1
+pdf("CT_1_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+#initial filtering step - usually you want cells with detected gene counts over 300 and mitochondrial transcripts below 5%
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+#normalize counts=====
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+pdf("CT_1_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+pdf("CT_1_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+saveRDS(all,"CT_1_QC.rds")
+#Doublet finder (no ground-truth) - please reference https://github.com/chris-mcginnis-ucsf/DoubletFinder for more information on parameters====
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("CT_1_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity") #look for pK at the initial peak
+dev.off()
+
+#CT_2
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-187/outs/')
+sc = autoEstCont(sc)
+CT_2.counts = adjustCounts(sc)
+CT_2 <- CreateSeuratObject(counts = CT_2.counts, project = "CT_1_HC_2", min.cells = 3, min.features = 200)
+CT_2[["Condition"]] = c('CT')
+CT_2[["Sample_Name"]] = c('CT_2')
+rm(CT_2.counts)
+#vizualize QC metrics and filtering====
+CT_2[["percent.mt"]] <- PercentageFeatureSet(object = CT_2, pattern = "^mt-") #recognize mitochondrial transcripts
+all <- CT_2
+#plot of correlation between number of genes detected and number of transcripts detected - you generally want this to be 1:1
+pdf("CT_2_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+#initial filtering step - usually you want cells with detected gene counts over 300 and mitochondrial transcripts below 5%
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+#normalize counts=====
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+pdf("CT_2_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+pdf("CT_2_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+saveRDS(all,"CT_2_QC.rds")
+#Doublet finder (no ground-truth) - please reference https://github.com/chris-mcginnis-ucsf/DoubletFinder for more information on parameters====
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("CT_2_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity") #look for pK at the initial peak
+dev.off()
+###############################################################################################
+#for loading Cell Ranger counts:
+sc = load10X('//Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-218/outs/')
+sc = autoEstCont(sc)
+CT_3.counts = adjustCounts(sc)
+CT_3 <- CreateSeuratObject(counts = CT_3.counts, project = "CT_1_YL_3", min.cells = 3, min.features = 200)
+CT_3[["Condition"]] = c('CT')
+CT_3[["Sample_Name"]] = c('CT_3')
+rm(CT_3.counts)
+#vizualize QC metrics and filtering====
+CT_3[["percent.mt"]] <- PercentageFeatureSet(object = CT_3, pattern = "^mt-") #recognize mitochondrial transcripts
+all <- CT_3
+#plot of correlation between number of genes detected and number of transcripts detected - you generally want this to be 1:1
+pdf("CT_3_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+#initial filtering step - usually you want cells with detected gene counts over 300 and mitochondrial transcripts below 5%
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+#normalize counts=====
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+pdf("CT_3_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+pdf("CT_3_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+saveRDS(all,"CT_3_QC.rds")
+#Doublet finder (no ground-truth) - please reference https://github.com/chris-mcginnis-ucsf/DoubletFinder for more information on parameters====
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("CT_3_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity") #look for pK at the initial peak
+dev.off()
+
+#for loading Cell Ranger counts:
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-225/outs/')
+sc = autoEstCont(sc) #soupX
+WT_4.counts = adjustCounts(sc)
+WT_4 <- CreateSeuratObject(counts = WT_4.counts, project = "CT_1_HC_4", min.cells = 3, min.features = 200)
+WT_4[["Condition"]] = c('KO')
+WT_4[["Sample_Name"]] = c('WT_4')
+rm(WT_4.counts)
+getwd()
+setwd('/Volumes/Wenjie_Luo/WT_4')
+#vizualize QC metrics and filtering====
+WT_4[["percent.mt"]] <- PercentageFeatureSet(object = WT_4, pattern = "^mt-") #recognize mitochondrial transcripts
+all <- WT_4
+#plot of correlation between number of genes detected and number of transcripts detected - you generally want this to be 1:1
+pdf("WT_4_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+#initial filtering step - usually you want cells with detected gene counts over 300 and mitochondrial transcripts below 5%
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+#normalize counts=====
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+pdf("WT_4_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+pdf("WT_4_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+saveRDS(all,"WT_4_QC.rds")
+#Doublet finder (no ground-truth) - please reference https://github.com/chris-mcginnis-ucsf/DoubletFinder for more information on parameters====
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("WT_4_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity") #look for pK at the initial peak
+dev.off()
+
+
+#for loading Cell Ranger counts:
+
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-113/outs/')
+sc = autoEstCont(sc)
+KO_1.counts = adjustCounts(sc)
+KO_1 <- CreateSeuratObject(counts = KO_1.counts, project = "KO_1_HC_5", min.cells = 3, min.features = 200)
+KO_1[["Condition"]] = c('KO')
+KO_1[["Sample_Name"]] = c('KO_1')
+rm(KO_1.counts)
+#vizualize QC metrics and filtering====
+KO_1[["percent.mt"]] <- PercentageFeatureSet(object = KO_1, pattern = "^mt-") #recognize mitochondrial transcripts
+all <- KO_1
+#plot of correlation between number of genes detected and number of transcripts detected - you generally want this to be 1:1
+pdf("KO_1_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+#initial filtering step - usually you want cells with detected gene counts over 300 and mitochondrial transcripts below 5%
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+#normalize counts=====
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+pdf("KO_1_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+pdf("KO_1_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+saveRDS(all,"KO_1_QC.rds")
+#Doublet finder (no ground-truth) - please reference https://github.com/chris-mcginnis-ucsf/DoubletFinder for more information on parameters====
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("KO_1_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity") #look for pK at the initial peak
+dev.off()
+
+#KO_2
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-152/outs/')
+sc = autoEstCont(sc)
+KO_2.counts = adjustCounts(sc)
+KO_2 <- CreateSeuratObject(counts = KO_2.counts, project = "KO_1_HC_6", min.cells = 3, min.features = 200)
+KO_2[["Condition"]] = c('KO')
+KO_2[["Sample_Name"]] = c('KO_2')
+rm(KO_2.counts)
+#vizualize QC metrics and filtering====
+KO_2[["percent.mt"]] <- PercentageFeatureSet(object = KO_2, pattern = "^mt-") #recognize mitochondrial transcripts
+all <- KO_2
+#plot of correlation between number of genes detected and number of transcripts detected - you generally want this to be 1:1
+pdf("KO_2_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+#initial filtering step - usually you want cells with detected gene counts over 300 and mitochondrial transcripts below 5%
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+#normalize counts=====
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+pdf("KO_2_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+pdf("KO_2_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+saveRDS(all,"KO_2_QC.rds")
+#Doublet finder (no ground-truth) - please reference https://github.com/chris-mcginnis-ucsf/DoubletFinder for more information on parameters====
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("KO_2_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity") #look for pK at the initial peak
+dev.off()
+###############################################################################################
+#for loading Cell Ranger counts:
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-200/outs/')
+sc = autoEstCont(sc)
+KO_3.counts = adjustCounts(sc)
+KO_3 <- CreateSeuratObject(counts = KO_3.counts, project = "KO_1_HC_7", min.cells = 3, min.features = 200)
+KO_3[["Condition"]] = c('KO')
+KO_3[["Sample_Name"]] = c('KO_3')
+rm(KO_3.counts)
+#vizualize QC metrics and filtering====
+KO_3[["percent.mt"]] <- PercentageFeatureSet(object = KO_3, pattern = "^mt-") #recognize mitochondrial transcripts
+all <- KO_3
+#plot of correlation between number of genes detected and number of transcripts detected - you generally want this to be 1:1
+pdf("KO_3_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+#initial filtering step - usually you want cells with detected gene counts over 300 and mitochondrial transcripts below 5%
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+#normalize counts=====
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+pdf("KO_3_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+pdf("KO_3_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+saveRDS(all,"KO_3_QC.rds")
+#Doublet finder (no ground-truth) - please reference https://github.com/chris-mcginnis-ucsf/DoubletFinder for more information on parameters====
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("KO_3_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity") #look for pK at the initial peak
+dev.off()
+
+#for loading Cell Ranger counts:
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-205/outs/')
+sc = autoEstCont(sc) #soupX
+KO_4.counts = adjustCounts(sc)
+KO_4 <- CreateSeuratObject(counts = KO_4.counts, project = "KO_1_HC_8", min.cells = 3, min.features = 200)
+KO_4[["Condition"]] = c('KO')
+KO_4[["Sample_Name"]] = c('KO_4')
+rm(KO_4.counts)
+getwd()
+setwd('/Volumes/Wenjie_Luo/KO_4')
+#vizualize QC metrics and filtering====
+KO_4[["percent.mt"]] <- PercentageFeatureSet(object = KO_4, pattern = "^mt-") #recognize mitochondrial transcripts
+all <- KO_4
+#plot of correlation between number of genes detected and number of transcripts detected - you generally want this to be 1:1
+pdf("KO_4_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+#initial filtering step - usually you want cells with detected gene counts over 300 and mitochondrial transcripts below 5%
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+#normalize counts=====
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+pdf("KO_4_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+pdf("KO_4_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+saveRDS(all,"KO_4_QC.rds")
+#Doublet finder (no ground-truth) - please reference https://github.com/chris-mcginnis-ucsf/DoubletFinder for more information on parameters====
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("KO_4_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity") #look for pK at the initial peak
+dev.off()
+
+# WT_Tau_1
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-96/outs/')
+sc = autoEstCont(sc)
+WT_Tau_1.counts = adjustCounts(sc)
+
+WT_Tau_1 <- CreateSeuratObject(counts = WT_Tau_1.counts, project = "WT_Tau_HC_9", min.cells = 3, min.features = 200)
+WT_Tau_1[["Condition"]] = c('WT_Tau')
+WT_Tau_1[["Sample_Name"]] = c('WT_Tau_1')
+rm(WT_Tau_1.counts)
+
+WT_Tau_1[["percent.mt"]] <- PercentageFeatureSet(WT_Tau_1, pattern = "^mt-")
+all <- WT_Tau_1
+
+pdf("WT_Tau_1_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, "nCount_RNA", "percent.mt")
+plot2 <- FeatureScatter(all, "nCount_RNA", "nFeature_RNA")
+CombinePlots(list(plot1, plot2))
+dev.off()
+
+all <- subset(x=all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method="vst", nfeatures=2000)
+all <- ScaleData(all)
+all <- RunPCA(all, features = rownames(x = all), verbose = FALSE)
+
+pdf("WT_Tau_1_Elbow.pdf")
+ElbowPlot(all)
+dev.off()
+
+all <- FindNeighbors(all, dims=1:15)
+all <- FindClusters(all, resolution=0.1)
+all <- RunUMAP(all, dims=1:15)
+
+pdf("WT_Tau_1_UMAP.pdf")
+DimPlot(all, reduction = "umap", label=TRUE)
+dev.off()
+
+saveRDS(all, "WT_Tau_1_QC.rds")
+
+sweep.pbmc <- paramSweep(all, PCs=1:15, sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc, GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+
+pdf("WT_Tau_1_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(pK, BCmetric)) + geom_bar(stat="identity")
+dev.off()
+
+# WT_Tau_2  (LG253-NY-93)
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-93/outs/')
+sc = autoEstCont(sc)
+WT_Tau_2.counts = adjustCounts(sc)
+WT_Tau_2 <- CreateSeuratObject(counts = WT_Tau_2.counts, project = "WT_Tau_2", min.cells = 3, min.features = 200)
+WT_Tau_2[["Condition"]] = c('WT_Tau')
+WT_Tau_2[["Sample_Name"]] = c('WT_Tau_2')
+rm(WT_Tau_2.counts)
+#vizualize QC metrics and filtering====
+WT_Tau_2[["percent.mt"]] <- PercentageFeatureSet(object = WT_Tau_2, pattern = "^mt-") #recognize mitochondrial transcripts
+all <- WT_Tau_2
+#plot of correlation between number of genes detected and number of transcripts detected - you generally want this to be 1:1
+pdf("WT_Tau_2_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+#initial filtering step - usually you want cells with detected gene counts over 300 and mitochondrial transcripts below 5%
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+#normalize counts=====
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+pdf("WT_Tau_2_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+pdf("WT_Tau_2_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+saveRDS(all,"WT_Tau_2_QC.rds")
+#Doublet finder (no ground-truth) - please reference https://github.com/chris-mcginnis-ucsf/DoubletFinder for more information on parameters====
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("WT_Tau_2_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity") #look for pK at the initial peak
+dev.off()
+
+###############################################################################################
+# WT_Tau_3  (LG253-NY-69)
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-69/outs/')
+sc = autoEstCont(sc)
+WT_Tau_3.counts = adjustCounts(sc)
+WT_Tau_3 <- CreateSeuratObject(counts = WT_Tau_3.counts, project = "WT_Tau_3", min.cells = 3, min.features = 200)
+WT_Tau_3[["Condition"]] = c('WT_Tau')
+WT_Tau_3[["Sample_Name"]] = c('WT_Tau_3')
+rm(WT_Tau_3.counts)
+#vizualize QC metrics and filtering====
+WT_Tau_3[["percent.mt"]] <- PercentageFeatureSet(object = WT_Tau_3, pattern = "^mt-") #recognize mitochondrial transcripts
+all <- WT_Tau_3
+#plot of correlation between number of genes detected and number of transcripts detected - you generally want this to be 1:1
+pdf("WT_Tau_3_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+#initial filtering step - usually you want cells with detected gene counts over 300 and mitochondrial transcripts below 5%
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+#normalize counts=====
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+pdf("WT_Tau_3_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+pdf("WT_Tau_3_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+saveRDS(all,"WT_Tau_3_QC.rds")
+#Doublet finder (no ground-truth) - please reference https://github.com/chris-mcginnis-ucsf/DoubletFinder for more information on parameters====
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("WT_Tau_3_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity") #look for pK at the initial peak
+dev.off()
+
+###############################################################################################
+# WT_Tau_4  (LG253-NY-81)
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-81/outs/')
+sc = autoEstCont(sc)
+WT_Tau_4.counts = adjustCounts(sc)
+WT_Tau_4 <- CreateSeuratObject(counts = WT_Tau_4.counts, project = "WT_Tau_4", min.cells = 3, min.features = 200)
+WT_Tau_4[["Condition"]] = c('WT_Tau')
+WT_Tau_4[["Sample_Name"]] = c('WT_Tau_4')
+rm(WT_Tau_4.counts)
+#vizualize QC metrics and filtering====
+WT_Tau_4[["percent.mt"]] <- PercentageFeatureSet(object = WT_Tau_4, pattern = "^mt-") #recognize mitochondrial transcripts
+all <- WT_Tau_4
+#plot of correlation between number of genes detected and number of transcripts detected - you generally want this to be 1:1
+pdf("WT_Tau_4_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+#initial filtering step - usually you want cells with detected gene counts over 300 and mitochondrial transcripts below 5%
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+#normalize counts=====
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+pdf("WT_Tau_4_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+pdf("WT_Tau_4_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+saveRDS(all,"WT_Tau_4_QC.rds")
+#Doublet finder (no ground-truth) - please reference https://github.com/chris-mcginnis-ucsf/DoubletFinder for more information on parameters====
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("WT_Tau_4_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity") #look for pK at the initial peak
+dev.off()
+
+###############################################################################################
+# KO_Tau_1  (LG253-NY-120)
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-120/outs/')
+sc = autoEstCont(sc)
+KO_Tau_1.counts = adjustCounts(sc)
+KO_Tau_1 <- CreateSeuratObject(counts = KO_Tau_1.counts, project = "KO_Tau_1", min.cells = 3, min.features = 200)
+KO_Tau_1[["Condition"]] = c('KO_Tau')
+KO_Tau_1[["Sample_Name"]] = c('KO_Tau_1')
+rm(KO_Tau_1.counts)
+#vizualize QC metrics and filtering====
+KO_Tau_1[["percent.mt"]] <- PercentageFeatureSet(object = KO_Tau_1, pattern = "^mt-") #recognize mitochondrial transcripts
+all <- KO_Tau_1
+#plot of correlation between number of genes detected and number of transcripts detected - you generally want this to be 1:1
+pdf("KO_Tau_1_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+#initial filtering step - usually you want cells with detected gene counts over 300 and mitochondrial transcripts below 5%
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+#normalize counts=====
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+pdf("KO_Tau_1_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+pdf("KO_Tau_1_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+saveRDS(all,"KO_Tau_1_QC.rds")
+#Doublet finder (no ground-truth) - please reference https://github.com/chris-mcginnis-ucsf/DoubletFinder for more information on parameters====
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("KO_Tau_1_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity") #look for pK at the initial peak
+dev.off()
+
+###############################################################################################
+# KO_Tau_2  (LG253-NY-95)
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-95/outs/')
+sc = autoEstCont(sc)
+KO_Tau_2.counts = adjustCounts(sc)
+KO_Tau_2 <- CreateSeuratObject(counts = KO_Tau_2.counts, project = "KO_Tau_2", min.cells = 3, min.features = 200)
+KO_Tau_2[["Condition"]] = c('KO_Tau')
+KO_Tau_2[["Sample_Name"]] = c('KO_Tau_2')
+rm(KO_Tau_2.counts)
+
+KO_Tau_2[["percent.mt"]] <- PercentageFeatureSet(object = KO_Tau_2, pattern = "^mt-")
+all <- KO_Tau_2
+
+pdf("KO_Tau_2_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+
+pdf("KO_Tau_2_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("KO_Tau_2_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+
+saveRDS(all,"KO_Tau_2_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+
+pdf("KO_Tau_2_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+###############################################################################################
+# KO_Tau_3  (LG253-NY-72)
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-72/outs/')
+sc = autoEstCont(sc)
+KO_Tau_3.counts = adjustCounts(sc)
+KO_Tau_3 <- CreateSeuratObject(counts = KO_Tau_3.counts, project = "KO_Tau_3", min.cells = 3, min.features = 200)
+KO_Tau_3[["Condition"]] = c('KO_Tau')
+KO_Tau_3[["Sample_Name"]] = c('KO_Tau_3')
+rm(KO_Tau_3.counts)
+
+KO_Tau_3[["percent.mt"]] <- PercentageFeatureSet(object = KO_Tau_3, pattern = "^mt-")
+all <- KO_Tau_3
+
+pdf("KO_Tau_3_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+
+pdf("KO_Tau_3_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("KO_Tau_3_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+
+saveRDS(all,"KO_Tau_3_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+
+pdf("KO_Tau_3_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+###############################################################################################
+# KO_Tau_4  (LG253-NY-74)
+sc = load10X('/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq/cellranger/LG253-NY-74/outs/')
+sc = autoEstCont(sc)
+KO_Tau_4.counts = adjustCounts(sc)
+KO_Tau_4 <- CreateSeuratObject(counts = KO_Tau_4.counts, project = "KO_Tau_4", min.cells = 3, min.features = 200)
+KO_Tau_4[["Condition"]] = c('KO_Tau')
+KO_Tau_4[["Sample_Name"]] = c('KO_Tau_4')
+rm(KO_Tau_4.counts)
+
+KO_Tau_4[["percent.mt"]] <- PercentageFeatureSet(object = KO_Tau_4, pattern = "^mt-")
+all <- KO_Tau_4
+
+pdf("KO_Tau_4_FeatureScatter.pdf", width=12, height=4)
+plot1 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(all, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+dev.off()
+
+all <- subset(x = all, subset = nFeature_RNA > 300 & nFeature_RNA < 4000 & nCount_RNA < 20000 & percent.mt < 5)
+
+all <- NormalizeData(all, normalization.method = "LogNormalize", scale.factor = 10000)
+all <- FindVariableFeatures(all, selection.method = "vst", nfeatures = 2000)
+all <- ScaleData(object = all)
+all <- RunPCA(object = all, features = rownames(x = all), verbose = FALSE)
+
+pdf("KO_Tau_4_Elbow_1.pdf", width=8, height=6)
+ElbowPlot(all)
+dev.off()
+
+all <- FindNeighbors(all, dims = 1:15)
+all <- FindClusters(all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("KO_Tau_4_UMAP.pdf", width=8, height=6)
+DimPlot(all, reduction = "umap", label = T)
+dev.off()
+
+saveRDS(all,"KO_Tau_4_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+
+pdf("KO_Tau_4_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+
+# second step
+#for loading Cell Ranger counts:
+# WT_Ctrl (CH25H+/+; P301S tau-)  LG253-NY-73  -> CT_1
+all <- readRDS(file = "CT_1_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("CT_1_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("CT_1_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("CT_1_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("CT_1_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"CT_1_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# WT_Ctrl (CH25H+/+; P301S tau-)  LG253-NY-187 -> CT_2
+all <- readRDS(file = "CT_2_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("CT_2_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("CT_2_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("CT_2_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("CT_2_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"CT_2_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# WT_Ctrl (CH25H+/+; P301S tau-)  LG253-NY-218 -> CT_3
+all <- readRDS(file = "CT_3_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("CT_3_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("CT_3_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("CT_3_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("CT_3_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"CT_3_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# WT_Ctrl (CH25H+/+; P301S tau-)  LG253-NY-225 -> WT_4  (your object name earlier)
+all <- readRDS(file = "WT_4_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("WT_4_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("WT_4_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("WT_4_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("WT_4_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"WT_4_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# WT_Tau (CH25H+/+; P301S tau+)  LG253-NY-96 -> WT_Tau_1
+all <- readRDS(file = "WT_Tau_1_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("WT_Tau_1_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("WT_Tau_1_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("WT_Tau_1_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("WT_Tau_1_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"WT_Tau_1_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# WT_Tau (CH25H+/+; P301S tau+)  LG253-NY-93 -> WT_Tau_2
+all <- readRDS(file = "WT_Tau_2_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("WT_Tau_2_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("WT_Tau_2_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("WT_Tau_2_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("WT_Tau_2_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"WT_Tau_2_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# WT_Tau (CH25H+/+; P301S tau+)  LG253-NY-69 -> WT_Tau_3
+all <- readRDS(file = "WT_Tau_3_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("WT_Tau_3_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("WT_Tau_3_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("WT_Tau_3_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("WT_Tau_3_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"WT_Tau_3_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# WT_Tau (CH25H+/+; P301S tau+)  LG253-NY-81 -> WT_Tau_4
+all <- readRDS(file = "WT_Tau_4_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("WT_Tau_4_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("WT_Tau_4_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("WT_Tau_4_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("WT_Tau_4_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"WT_Tau_4_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# KO_Ctrl (CH25H-/-; P301S tau-)  LG253-NY-113 -> KO_1
+all <- readRDS(file = "KO_1_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("KO_1_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("KO_1_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("KO_1_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("KO_1_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"KO_1_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# KO_Ctrl (CH25H-/-; P301S tau-)  LG253-NY-152 -> KO_2
+all <- readRDS(file = "KO_2_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("KO_2_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("KO_2_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("KO_2_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("KO_2_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"KO_2_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# KO_Ctrl (CH25H-/-; P301S tau-)  LG253-NY-200 -> KO_3
+all <- readRDS(file = "KO_3_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("KO_3_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("KO_3_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("KO_3_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("KO_3_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"KO_3_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# KO_Ctrl (CH25H-/-; P301S tau-)  LG253-NY-205 -> KO_4
+all <- readRDS(file = "KO_4_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("KO_4_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("KO_4_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("KO_4_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("KO_4_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"KO_4_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# KO_Tau (CH25H-/-; P301S tau+)  LG253-NY-120 -> KO_Tau_1
+all <- readRDS(file = "KO_Tau_1_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("KO_Tau_1_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("KO_Tau_1_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("KO_Tau_1_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("KO_Tau_1_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"KO_Tau_1_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# KO_Tau (CH25H-/-; P301S tau+)  LG253-NY-95 -> KO_Tau_2
+all <- readRDS(file = "KO_Tau_2_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("KO_Tau_2_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("KO_Tau_2_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("KO_Tau_2_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("KO_Tau_2_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"KO_Tau_2_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# KO_Tau (CH25H-/-; P301S tau+)  LG253-NY-72 -> KO_Tau_3
+all <- readRDS(file = "KO_Tau_3_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("KO_Tau_3_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("KO_Tau_3_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("KO_Tau_3_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("KO_Tau_3_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
+# saveRDS(all,"KO_Tau_3_after_doublet_detection.rds")
+# remove doublets
+
+
+###############################################################################################
+# KO_Tau (CH25H-/-; P301S tau+)  LG253-NY-74 -> KO_Tau_4
+all <- readRDS(file = "KO_Tau_4_QC.rds")
+
+sweep.pbmc <- paramSweep(all,PCs=1:15,sct=FALSE)
+sweep.stats_pbmc <- summarizeSweep(sweep.pbmc,GT=FALSE)
+bcmvn_pbmc <- find.pK(sweep.stats_pbmc)
+pdf("KO_Tau_4_ggplot_pK.pdf", width=18, height=6)
+ggplot(bcmvn_pbmc, aes(x=bcmvn_pbmc$pK, y=bcmvn_pbmc$BCmetric))+geom_bar(stat="identity")
+dev.off()
+
+length(all@meta.data$seurat_clusters)
+
+annotations <- all@meta.data$seurat_clusters
+homotypic.prop <- modelHomotypic(annotations)
+
+nExp_poi <- round(0.076*ncol(all))
+nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+
+pANN_name <- paste0("pANN_0.25_0.01_", nExp_poi)
+DF_name   <- paste0("DF.classifications_0.25_0.01_", nExp_poi.adj)
+
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi, reuse.pANN = FALSE, sct=FALSE)
+all <- doubletFinder(all, PCs=1:15, pN=0.25, pK=0.01, nExp=nExp_poi.adj, reuse.pANN = pANN_name, sct=FALSE)
+
+pdf("KO_Tau_4_Elbow_2.pdf", width=8, height=6)
+ElbowPlot(all,ndims=50)
+dev.off()
+
+all <- FindNeighbors(object = all, dims = 1:15)
+all <- FindClusters(object = all, resolution = 0.1)
+all <- RunUMAP(all, dims = 1:15)
+
+pdf("KO_Tau_4_UMAP_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = T)
+dev.off()
+
+all@meta.data
+Idents(object = all) <- DF_name
+pdf("KO_Tau_4_UMAP_singlets_doublets_2.pdf", width=8, height=6)
+DimPlot(object = all, reduction = 'umap', label = F)
+dev.off()
