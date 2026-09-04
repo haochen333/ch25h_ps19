@@ -1,0 +1,238 @@
+# Step 2: DoubletFinder filtering and reprocessing of singlets
+# Input files are the *_QC.rds objects generated in Step 1.
+
+library(Seurat)
+library(ggplot2)
+library(DoubletFinder)
+
+# Set this to the folder containing all *_QC.rds files.
+data_dir <- "/Volumes/haochen2026/00_single_nuclei_seq_data/04_LG253_CH25H_Tau_snRNAseq"
+setwd(data_dir)
+
+# Samples generated in Step 1.
+samples <- c(
+  "CT_1", "CT_2", "CT_3", "WT_4",
+  "KO_1", "KO_2", "KO_3", "KO_4",
+  "WT_Tau_1", "WT_Tau_2", "WT_Tau_3", "WT_Tau_4",
+  "KO_Tau_1", "KO_Tau_2", "KO_Tau_3", "KO_Tau_4"
+)
+
+# Parameters matching your example.
+pcs_use <- 1:15
+pN_use <- 0.25
+pK_default <- 0.01
+doublet_rate <- 0.076
+cluster_resolution <- 0.1
+
+# If a sample needs a different pK based on its pK plot, enter it here.
+# Example: pK_overrides <- c(CT_1 = 0.01, CT_2 = 0.02)
+pK_overrides <- c()
+
+process_doublets <- function(sample_name) {
+  message("Processing ", sample_name)
+
+  input_file <- paste0(sample_name, "_QC.rds")
+  if (!file.exists(input_file)) {
+    warning("Skipping ", sample_name, ": file not found: ", input_file)
+    return(NULL)
+  }
+
+  all <- readRDS(input_file)
+  DefaultAssay(all) <- "RNA"
+
+  # Confirm that the PCA and cluster results required by DoubletFinder exist.
+  if (!"pca" %in% Reductions(all)) {
+    stop(sample_name, " does not contain a PCA reduction.")
+  }
+  if (!"seurat_clusters" %in% colnames(all[[]])) {
+    stop(sample_name, " does not contain seurat_clusters metadata.")
+  }
+
+  # Parameter sweep and BCmetric plot.
+  sweep_results <- paramSweep(all, PCs = pcs_use, sct = FALSE)
+  sweep_stats <- summarizeSweep(sweep_results, GT = FALSE)
+  bcmvn <- find.pK(sweep_stats)
+
+  pK_plot <- ggplot(bcmvn, aes(x = pK, y = BCmetric)) +
+    geom_col() +
+    labs(
+      title = paste0(sample_name, ": DoubletFinder pK sweep"),
+      x = "pK",
+      y = "BCmetric"
+    ) +
+    theme_classic()
+
+  ggsave(
+    filename = paste0(sample_name, "_ggplot_pK.pdf"),
+    plot = pK_plot,
+    width = 18,
+    height = 6
+  )
+
+  # Use a sample-specific pK override when supplied; otherwise use 0.01.
+  pK_use <- pK_default
+  if (sample_name %in% names(pK_overrides)) {
+    pK_use <- unname(pK_overrides[sample_name])
+  }
+
+  # Estimate expected doublets and adjust for homotypic doublets.
+  annotations <- all$seurat_clusters
+  homotypic_prop <- modelHomotypic(annotations)
+  nExp_poi <- round(doublet_rate * ncol(all))
+  nExp_poi_adj <- round(nExp_poi * (1 - homotypic_prop))
+
+  message(
+    sample_name,
+    ": nuclei = ", ncol(all),
+    ", pK = ", pK_use,
+    ", expected doublets = ", nExp_poi,
+    ", adjusted expected doublets = ", nExp_poi_adj
+  )
+
+  # First DoubletFinder run: generate pANN using the unadjusted estimate.
+  pANN_before <- grep("^pANN_", colnames(all[[]]), value = TRUE)
+  all <- doubletFinder(
+    all,
+    PCs = pcs_use,
+    pN = pN_use,
+    pK = pK_use,
+    nExp = nExp_poi,
+    reuse.pANN = FALSE,
+    sct = FALSE
+  )
+  pANN_after <- grep("^pANN_", colnames(all[[]]), value = TRUE)
+  pANN_name <- tail(setdiff(pANN_after, pANN_before), 1)
+
+  if (length(pANN_name) != 1) {
+    stop("Could not identify the new pANN column for ", sample_name)
+  }
+
+  # Second run: reuse pANN and apply the homotypic-adjusted estimate.
+  DF_before <- grep("^DF.classifications_", colnames(all[[]]), value = TRUE)
+  all <- doubletFinder(
+    all,
+    PCs = pcs_use,
+    pN = pN_use,
+    pK = pK_use,
+    nExp = nExp_poi_adj,
+    reuse.pANN = pANN_name,
+    sct = FALSE
+  )
+  DF_after <- grep("^DF.classifications_", colnames(all[[]]), value = TRUE)
+  DF_name <- tail(setdiff(DF_after, DF_before), 1)
+
+  if (length(DF_name) != 1) {
+    stop("Could not identify the new DoubletFinder classification column for ", sample_name)
+  }
+
+  # Store stable metadata names that do not depend on parameter-generated names.
+  all$DoubletFinder_pANN <- all[[]][[pANN_name]]
+  all$DoubletFinder_classification <- all[[]][[DF_name]]
+
+  # Visualize the clusters and DoubletFinder classifications.
+  elbow_plot <- ElbowPlot(all, ndims = 50)
+  ggsave(
+    paste0(sample_name, "_Elbow_2.pdf"),
+    elbow_plot,
+    width = 8,
+    height = 6
+  )
+
+  all <- FindNeighbors(all, dims = pcs_use)
+  all <- FindClusters(all, resolution = cluster_resolution)
+  all <- RunUMAP(all, dims = pcs_use)
+
+  cluster_plot <- DimPlot(all, reduction = "umap", label = TRUE)
+  ggsave(
+    paste0(sample_name, "_UMAP_2.pdf"),
+    cluster_plot,
+    width = 8,
+    height = 6
+  )
+
+  Idents(all) <- "DoubletFinder_classification"
+  doublet_plot <- DimPlot(all, reduction = "umap", label = FALSE)
+  ggsave(
+    paste0(sample_name, "_UMAP_singlets_doublets_2.pdf"),
+    doublet_plot,
+    width = 8,
+    height = 6
+  )
+
+  saveRDS(all, paste0(sample_name, "_after_doublet_detection.rds"))
+
+  # Remove predicted doublets.
+  singlets <- subset(all, subset = DoubletFinder_classification == "Singlet")
+  message(sample_name, ": retained singlets = ", ncol(singlets))
+
+  # Reprocess the singlet-only object.
+  DefaultAssay(singlets) <- "RNA"
+  singlets <- NormalizeData(
+    singlets,
+    normalization.method = "LogNormalize",
+    scale.factor = 10000
+  )
+  singlets <- FindVariableFeatures(
+    singlets,
+    selection.method = "vst",
+    nfeatures = 2000
+  )
+  singlets <- ScaleData(singlets)
+  singlets <- RunPCA(
+    singlets,
+    features = VariableFeatures(singlets),
+    verbose = FALSE
+  )
+
+  singlet_elbow_plot <- ElbowPlot(singlets, ndims = 50)
+  ggsave(
+    paste0(sample_name, "_Elbow_after_processing.pdf"),
+    singlet_elbow_plot,
+    width = 8,
+    height = 6
+  )
+
+  singlets <- FindNeighbors(singlets, dims = pcs_use)
+  singlets <- FindClusters(singlets, resolution = cluster_resolution)
+  singlets <- RunUMAP(singlets, dims = pcs_use)
+
+  Idents(singlets) <- "seurat_clusters"
+  singlet_umap_plot <- DimPlot(singlets, reduction = "umap", label = TRUE)
+  ggsave(
+    paste0(sample_name, "_UMAP_singlets_after_processing.pdf"),
+    singlet_umap_plot,
+    width = 8,
+    height = 6
+  )
+
+  saveRDS(singlets, paste0(sample_name, "_singlets_PCA.rds"))
+
+  # Return a compact summary for the combined CSV report.
+  data.frame(
+    Sample_Name = sample_name,
+    Nuclei_before_DoubletFinder = ncol(all),
+    Expected_doublets = nExp_poi,
+    Homotypic_adjusted_expected_doublets = nExp_poi_adj,
+    Singlets_retained = ncol(singlets),
+    Doublets_removed = ncol(all) - ncol(singlets),
+    pN = pN_use,
+    pK = pK_use,
+    Homotypic_proportion = homotypic_prop,
+    stringsAsFactors = FALSE
+  )
+}
+
+# Process all 16 samples. A missing input file is skipped with a warning.
+processing_summary <- do.call(
+  rbind,
+  lapply(samples, process_doublets)
+)
+
+write.csv(
+  processing_summary,
+  file = "DoubletFinder_processing_summary.csv",
+  row.names = FALSE
+)
+
+print(processing_summary)
+message("Step 2 processing is complete.")
